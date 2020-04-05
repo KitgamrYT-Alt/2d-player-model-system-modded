@@ -18,7 +18,7 @@ local function iargs(n,t,...)
 
     for i = 1,select('#',...) do
         if type(select(i,...)) != t then
-            error('[QTG 2D Ply] bad argument #'..i..' to \''..n..'\' ('..t..' expected, got '..type(select(i,...))..')')
+            error('[2D Player Model System] bad argument #'..i..' to \''..n..'\' ('..t..' expected, got '..type(select(i,...))..')')
         end
     end
 end
