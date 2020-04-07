@@ -338,7 +338,7 @@ if CLIENT then
                 end
             end
 
-            if next(tbl) == nil or next(tbl[st]) == nil then
+            if !iserror and (next(tbl) == nil or next(tbl[st]) == nil) then
                 tbl = t.normal
             end
 
