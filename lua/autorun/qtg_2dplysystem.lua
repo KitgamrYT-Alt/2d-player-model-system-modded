@@ -17,7 +17,13 @@ local function iargs(n,t,...)
     t = t or 'nil'
 
     for i = 1,select('#',...) do
-        if type(select(i,...)) != t then
+        local ty = type(select(i,...))
+
+        if t == 'Entity' and isentity(select(i,...)) then
+            ty = 'Entity'
+        end
+
+        if ty != t then
             error('[2D Player Model System] bad argument #'..i..' to \''..n..'\' ('..t..' expected, got '..type(select(i,...))..')')
         end
     end
@@ -88,11 +94,13 @@ function QTG2DPLY.Add2DPly(n,b)
 end
 
 function QTG2DPLY.GetPlyModelName(p)
+    iargs('GetPlyModelName','Player',p)
+
     if p:IsPlayer() then
         if p:IsBot() then
             return p.__qtg2dplymodelbot or ''
         else
-            return p:GetInfo('cl_playermodel')
+            return p:GetNWString('qtg_2dnpc_cl_playermodel')
         end
     end
 
@@ -125,6 +133,10 @@ function QTG2DPLY.Is2DPly(p)
     local pm = QTG2DPLY.GetPlyModelName(p)
 
     if !pm then return false end
+
+    if QTG2DPLY.List[pm] and p:GetModel() == 'models/player/kleiner.mdl' then -- WTF? How??
+        p:SetModel('models/player/alyx.mdl')
+    end
 
     return tobool(QTG2DPLY.List[pm] and p:GetModel() == 'models/player/alyx.mdl')
 end
@@ -569,6 +581,14 @@ else
 
             if t.target[2] then
                 e:SetNWString('qtg_2dnpctype',t.target[2])
+            end
+        end
+    end)
+
+    addhook('Think',function()
+        for k,v in pairs(player.GetAll()) do
+            if !v:GetNWString('qtg_2dnpc_cl_playermodel') or v:GetNWString('qtg_2dnpc_cl_playermodel') != v:GetInfo('cl_playermodel') then
+                v:SetNWString('qtg_2dnpc_cl_playermodel',v:GetInfo('cl_playermodel'))
             end
         end
     end)
