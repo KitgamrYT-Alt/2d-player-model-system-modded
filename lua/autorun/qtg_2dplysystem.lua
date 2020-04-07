@@ -76,7 +76,7 @@ function QTG2DPLY.Add2DPly(n,b)
             t.Class = i == 1 and 'npc_citizen' or 'npc_combine_s'
             t.Health = 100
             t.Category = '2D NPC'
-            t.KeyValues = {target = 'qtg_is2dnpc|'..n}
+            t.KeyValues = {target = 'qtg_2dply_is2dnpc|'..n}
             
             if i == 1 then
                 t.KeyValues.citizentype = CT_DEFAULT
@@ -94,13 +94,13 @@ function QTG2DPLY.Add2DPly(n,b)
 end
 
 function QTG2DPLY.GetPlyModelName(p)
-    iargs('GetPlyModelName','Player',p)
+    iargs('GetPlyModelName','Entity',p)
 
     if p:IsPlayer() then
         if p:IsBot() then
             return p.__qtg2dplymodelbot or ''
         else
-            return p:GetNWString('qtg_2dnpc_cl_playermodel')
+            return p:GetNWString('qtg_2dply_cl_playermodel')
         end
     end
 
@@ -121,7 +121,7 @@ function QTG2DPLY.Is2DPly(p)
     end
 
     if IsValid(p) and p:IsNPC() then
-        return true
+        return p:GetNWBool('qtg_2dply_is2dnpc')
     end
 
     if CLIENT and !IsValid(p) then
@@ -134,14 +134,25 @@ function QTG2DPLY.Is2DPly(p)
 
     if !pm then return false end
 
-    if QTG2DPLY.List[pm] and p:GetModel() == 'models/player/kleiner.mdl' then -- WTF? How??
-        p:SetModel('models/player/alyx.mdl')
+    if CLIENT then
+        if QTG2DPLY.List[pm] and p:GetModel() == 'models/player/kleiner.mdl' then -- WTF? How??
+            p:SetModel('models/player/alyx.mdl')
+        end
+
+        net.Start('qtg_2dply_serveris2d')
+        net.SendToServer()
     end
 
     return tobool(QTG2DPLY.List[pm] and p:GetModel() == 'models/player/alyx.mdl')
 end
 
-function QTG2DPLY.Get2DPlys()
+function QTG2DPLY.NWIs2DPly(p)
+    if !IsValid(p) then return false end
+
+    return p:GetNWBool('qtg_2dply_is2dply')
+end
+
+function QTG2DPLY.GetList()
     return QTG2DPLY.List
 end
 
@@ -195,8 +206,6 @@ if CLIENT then
         local f,d = file.Find('materials/'..pa..'/*','GAME')
 
         t['normal'] = {}
-        t['jump'] = {}
-        t['death'] = {}
 
         for k,v in pairs(d) do
             local f2,d2 = file.Find('materials/'..pa..'/'..v..'/*','GAME')
@@ -210,6 +219,10 @@ if CLIENT then
             end
 
             for k3,v3 in pairs(d2) do
+                if !t[v3] then
+                    t[v3] = {}
+                end
+
                 t[v3][v] = {}
 
                 local f3,d3 = file.Find('materials/'..pa..'/'..v..'/'..v3..'/*','GAME')
@@ -235,6 +248,7 @@ if CLIENT then
         end
 
         if !c then return end
+        if !QTG2DPLY.List[c] then return end
         if next(QTG2DPLY.List[c].mats) == nil then
             QTG2DPLY.FindMat(c)
         end
@@ -262,27 +276,49 @@ if CLIENT then
             end
         end
 
-        if QTG2DPLY.Is2DPly(p) then
+        if QTG2DPLY.Is2DPly(p) or QTG2DPLY.NWIs2DPly(p) then
             local pos = p:GetPos():ToScreen()
+            local iserror = false
 
             if !pos.visible then
                 return true
             end
 
-            local t = QTG2DPLY.GetMat(p:IsNPC() and p:GetNWString('qtg_2dnpctype') or nil,p)
+            local t = QTG2DPLY.GetMat(p:IsNPC() and p:GetNWString('qtg_2dply_npctype') or nil,p)
 
-            if !t then return end
-
-            local tbl = t.normal
-            local Alive = p:IsNPC() and !IsValid(e) or p:Alive()
-            local iserror = false
-
-            if !p:IsOnGround() and !IsValid(e) and p:IsPlayer() then
-                tbl = t.jump
+            if !t then
+                iserror = true
             end
 
-            if !Alive then
-                tbl = t.death
+            local tbl = {}
+            local Alive = p:IsNPC() and !IsValid(e) or p:Alive()
+
+            if !iserror then
+                tbl = t.normal
+
+                if p:IsPlayer() and p:Crouching() and !IsValid(e) and (t.duck or t.crouch) then
+                    local tt
+
+                    if t.crouch then
+                        tt = t.crouch
+                    elseif t.duck then
+                        tt = t.duck
+                    end
+
+                    tbl = tt
+                end
+
+                if p:IsPlayer() and !p:IsOnGround() and !IsValid(e) and t.jump then
+                    tbl = t.jump
+                end
+
+                if p:GetMoveType() == MOVETYPE_NOCLIP and !IsValid(e) and t.noclip then
+                    tbl = t.noclip
+                end
+
+                if !Alive and t.death then
+                    tbl = t.death
+                end
             end
 
             local st = 'default'
@@ -374,7 +410,14 @@ if CLIENT then
 
                 surface.SetDrawColor(Color(c.r,c.g,c.b,c.a))
 
-                if iserror then -- TODO: If player can't display material, then display error
+                if iserror then
+                    surface.DrawRect(-125,-250,250,500)
+                    surface.SetFont('DermaLarge')
+                    surface.SetTextColor(0,0,0)
+                    surface.SetTextPos(-100,-80)
+                    surface.DrawText('2D Player Model')
+                    surface.SetTextPos(-100,-40)
+                    surface.DrawText('Invalid Material')
 
                     return
                 end
@@ -474,7 +517,7 @@ if CLIENT then
         end
 
         for k,v in pairs(t) do
-            if v:GetNWBool('qtg_is2dnpc') then
+            if v:GetNWBool('qtg_2dply_is2dnpc') then
                 local old = v.RenderOverride or function(self) self:DrawModel() end
                 v.__OldRenderOverride = v.__OldRenderOverride or old
 
@@ -567,28 +610,33 @@ else
 
     util.AddNetworkString('qtg_2dply_reload')
     util.AddNetworkString('qtg_2dply_npcdeath')
+    util.AddNetworkString('qtg_2dply_serveris2d')
+
+    net.Receive('qtg_2dply_serveris2d',function(_,p)
+        p:SetNWBool('qtg_2dply_is2dply',QTG2DPLY.Is2DPly(p))
+    end)
 
     addhook('PlayerSpawnedNPC',function(p,e)
         if !IsValid(e) then return end
 
         local t = e:GetKeyValues()
 
-        if t.target and string.find(t.target,'qtg_is2dnpc') then
+        if t.target and string.find(t.target,'qtg_2dply_is2dnpc') then
             t.target = string.Split(t.target,'|')
 
             e:SetKeyValue('target','')
-            e:SetNWBool('qtg_is2dnpc',true)
+            e:SetNWBool('qtg_2dply_is2dnpc',true)
 
             if t.target[2] then
-                e:SetNWString('qtg_2dnpctype',t.target[2])
+                e:SetNWString('qtg_2dply_npctype',t.target[2])
             end
         end
     end)
 
     addhook('Think',function()
         for k,v in pairs(player.GetAll()) do
-            if !v:GetNWString('qtg_2dnpc_cl_playermodel') or v:GetNWString('qtg_2dnpc_cl_playermodel') != v:GetInfo('cl_playermodel') then
-                v:SetNWString('qtg_2dnpc_cl_playermodel',v:GetInfo('cl_playermodel'))
+            if v:GetNWString('qtg_2dply_cl_playermodel') != v:GetInfo('cl_playermodel') then
+                v:SetNWString('qtg_2dply_cl_playermodel',v:GetInfo('cl_playermodel'))
             end
         end
     end)
