@@ -140,6 +140,7 @@ function QTG2DPLY.Is2DPly(p)
         end
 
         net.Start('qtg_2dply_serveris2d')
+        net.WriteString(p:GetModel())
         net.SendToServer()
     end
 
@@ -258,6 +259,7 @@ if CLIENT then
 
     function QTG2DPLY.RenderOverride(p,e)
         if !IsValid(p) then return end
+
         if p:IsPlayer() then
             local c = QTG2DPLY.GetPlyModelName(p)
 
@@ -265,7 +267,7 @@ if CLIENT then
                 local w = p:GetActiveWeapon()
 
                 if IsValid(w) then
-                    w:SetNoDraw(p:GetModel() == 'models/player/alyx.mdl')
+                    w:SetNoDraw(p:GetModel() == 'models/player/alyx.mdl' or QTG2DPLY.NWIs2DPly(p))
                 end
             end
         else
@@ -279,6 +281,7 @@ if CLIENT then
         if QTG2DPLY.Is2DPly(p) or QTG2DPLY.NWIs2DPly(p) then
             local pos = p:GetPos():ToScreen()
             local iserror = false
+            local veh = p:GetVehicle()
 
             if !pos.visible then
                 return true
@@ -314,6 +317,10 @@ if CLIENT then
 
                 if p:GetMoveType() == MOVETYPE_NOCLIP and !IsValid(e) and t.noclip then
                     tbl = t.noclip
+                end
+
+                if IsValid(veh) and !IsValid(e) and t.sit then
+                    tbl = t.sit
                 end
 
                 if !Alive and t.death then
@@ -372,8 +379,14 @@ if CLIENT then
                 end
             end
 
-            local pos = p:GetPos()+Vector(0,0,p:OBBCenter().z)
+            local pos = p:GetPos()+p:GetUp()*p:OBBCenter().z
             local ang = p:EyeAngles()
+            local vehfix = Angle(0,90,0)
+
+            if IsValid(veh) then
+                pos = p:GetPos()+p:GetUp()*(p:OBBCenter().z/2)
+                ang = p:GetAngles()
+            end
 
             if IsValid(e) then
                 if e:GetClass() == 'class C_BaseFlex' then
@@ -390,7 +403,7 @@ if CLIENT then
                 end
             elseif !Alive then
                 return
-            else
+            elseif !IsValid(veh) then
                 ang.p = math.Clamp(ang.p,-20,20)
             end
 
@@ -440,6 +453,10 @@ if CLIENT then
             fixr = Vector(0,-90,90)
             ang = p:EyeAngles()
 
+            if IsValid(veh) then
+                ang = p:GetAngles()
+            end
+
             if IsValid(e) then
                 if e:GetClass() == 'class C_BaseFlex' then
                     ang = e:EyeAngles()
@@ -450,7 +467,7 @@ if CLIENT then
                         ang = eye.Ang
                     end
                 end
-            else
+            elseif !IsValid(veh) then
                 ang.p = math.Clamp(ang.p,-20,20)
             end
 
@@ -519,7 +536,7 @@ if CLIENT then
         for k,v in pairs(t) do
             if v:GetNWBool('qtg_2dply_is2dnpc') then
                 local old = v.RenderOverride or function(self) self:DrawModel() end
-                v.__OldRenderOverride = v.__OldRenderOverride or old
+                v.__oldRenderOverride = v.__oldRenderOverride or old
 
                 v.RenderOverride = function(self)
                     local r = QTG2DPLY.RenderOverride(self)
@@ -530,7 +547,7 @@ if CLIENT then
     
                     self:DrawModel()
     
-                    return self:__OldRenderOverride()
+                    return self:__oldRenderOverride()
                 end
             end
         end
@@ -565,7 +582,7 @@ if CLIENT then
             function p:Paint(w,h)
                 if IsValid(self.Entity) then
                     local old = self.Entity.RenderOverride or function(self) self:DrawModel() end
-                    self.Entity.__OldRenderOverride = self.Entity.__OldRenderOverride or old
+                    self.Entity.__oldRenderOverride = self.Entity.__oldRenderOverride or old
 
                     local p = LocalPlayer()
                     local c = GetConVar('cl_playermodel')
@@ -597,7 +614,7 @@ if CLIENT then
                             self:DrawModel()
                         end
             
-                        return self:__OldRenderOverride()
+                        return self:__oldRenderOverride()
                     end
                 end
 
@@ -613,7 +630,9 @@ else
     util.AddNetworkString('qtg_2dply_serveris2d')
 
     net.Receive('qtg_2dply_serveris2d',function(_,p)
-        p:SetNWBool('qtg_2dply_is2dply',QTG2DPLY.Is2DPly(p))
+        local pm = net.ReadString()
+
+        p:SetNWBool('qtg_2dply_is2dply',QTG2DPLY.Is2DPly(p) and pm == p:GetModel())
     end)
 
     addhook('PlayerSpawnedNPC',function(p,e)
