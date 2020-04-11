@@ -281,7 +281,7 @@ if CLIENT then
         if QTG2DPLY.Is2DPly(p) or QTG2DPLY.NWIs2DPly(p) then
             local pos = p:GetPos():ToScreen()
             local iserror = false
-            local veh = p:GetVehicle()
+            local veh = p:IsPlayer() and p:GetVehicle() or nil
 
             if !pos.visible then
                 return true
