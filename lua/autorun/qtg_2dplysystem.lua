@@ -498,8 +498,6 @@ if CLIENT then
                         return
                     end
 
-                    self:DrawModel()
-
                     return old(self)
                 end
             end
@@ -515,8 +513,6 @@ if CLIENT then
                     if r then
                         return
                     end
-
-                    self:DrawModel()
 
                     return old(self)
                 end
@@ -544,8 +540,6 @@ if CLIENT then
                     if r then
                         return
                     end
-    
-                    self:DrawModel()
     
                     return self:__oldRenderOverride()
                 end
@@ -610,8 +604,6 @@ if CLIENT then
                     self.Entity.RenderOverride = function(self)
                         if bool then
                             return
-                        else
-                            self:DrawModel()
                         end
             
                         return self:__oldRenderOverride()
