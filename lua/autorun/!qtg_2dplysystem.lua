@@ -10,8 +10,7 @@ end
 
 local hidewep
 
-if SERVER then
-else
+if CLIENT then
     hidewep = addconvar('hidewep',1)
 end
 
@@ -204,6 +203,11 @@ QTG2DPLY.Init()
 
 net.Receive('qtg_2dply_reload',function()
     QTG2DPLY.Init()
+
+    if SERVER then
+        net.Start('qtg_2dply_reload')
+        net.Broadcast()
+    end
 end)
 
 concommand.Add('qtg_2dply_reload',function(p,c,a,as)
@@ -369,6 +373,10 @@ if CLIENT then
 
                 if !Alive and t.death then
                     tbl = t.death
+                end
+
+                if p:WaterLevel() > 1 and !IsValid(e) and t.swimming then
+                    tbl = t.swimming
                 end
             end
 
@@ -816,10 +824,10 @@ if CLIENT then
         function w:SelectorModel()
             if !self.id then return end
 
-            notification.AddProgress('qtg_2dplydownload','Downloading 2D Player Model ('..(self.id)..') ...')
+            notification.AddProgress('qtg_2dplydownload_'..self.id,'Downloading 2D Player Model ('..(self.id)..') ...')
 
             steamworks.DownloadUGC(self.id,function(n,f)
-                notification.Kill('qtg_2dplydownload')
+                notification.Kill('qtg_2dplydownload_'..self.id)
 
                 if f then
                     notification.AddLegacy('2D Player Model ('..(self.id)..') download completed',NOTIFY_GENERIC,3)
@@ -867,6 +875,10 @@ if CLIENT then
 
                     QTG2DPLY.Add2DPly(modelname,true)
 
+                    net.Start('qtg_2dply_workshopds')
+                    net.WriteUInt(self.id,32)
+                    net.SendToServer()
+
                     if IsValid(p) then
                         p:Remove()
                     end
@@ -889,7 +901,7 @@ if CLIENT then
         end
 
         function w:InjectScripts()
-            w:QueueJavascript(string.format([[
+            self:QueueJavascript(string.format([[
                 function SubscribeItem(){
                     gmod.qtg_tpsubscribe()
                 }
@@ -914,12 +926,12 @@ if CLIENT then
         w:MoveBelow(wc)
         w:OpenURL(url)
 
-        s:AddSheet('Workshop Model (Beta)',wp,'icon16/user.png')
+        s:AddSheet('Workshop Model',wp,'icon16/user.png')
 
-        local ip = p:Add('DPanel')
-        ip:DockPadding(8,8,8,8)
+        -- local ip = p:Add('DPanel')
+        -- ip:DockPadding(8,8,8,8)
 
-        s:AddSheet('Internet Model (Undone)',ip,'icon16/user.png')
+        -- s:AddSheet('Internet Model (Undone)',ip,'icon16/user.png')
 
         local sp = p:Add('DPanel')
         sp:DockPadding(8,8,8,8)
@@ -1032,17 +1044,103 @@ if CLIENT then
     concommand.Add('qtg_2dply_menu',function(p,s,a,as)
         createvgui()
     end)
+
+    net.Receive('qtg_2dply_workshopds_client',function(_,p)
+        local id = net.ReadUInt(32)
+
+        notification.AddProgress('qtg_2dplydownload_'..id,'Downloading 2D Player Model ('..(id)..') ...')
+
+        steamworks.DownloadUGC(id,function(n,f)
+            notification.Kill('qtg_2dplydownload_'..id)
+
+            if f then
+                notification.AddLegacy('2D Player Model ('..(id)..') download completed',NOTIFY_GENERIC,3)
+                surface.PlaySound('buttons/button15.wav')
+            else
+                notification.AddLegacy('2D Player Model ('..(id)..') download failed',NOTIFY_ERROR,3)
+                surface.PlaySound('buttons/button10.wav')
+
+                return
+            end
+
+            local b,t = game.MountGMA(n)
+
+            if b then
+                local modelname = ''
+
+                for k,v in pairs(t) do
+                    if string.StartWith(v,'materials/2dplayers/') then
+                        local text = string.Split(v,'/')
+
+                        if text[3] then
+                            modelname = text[3]
+
+                            break
+                        end
+                    end
+                end
+
+                if modelname == '' then
+                    return
+                end
+
+                modelname = string.lower(string.gsub(modelname,'_',' '))
+                modelname = string.upper(string.sub(modelname,1,1))..string.sub(modelname,2)
+
+                if QTG2DPLY.Is2DPly(modelname) then
+                    return
+                end
+
+                QTG2DPLY.Add2DPly(modelname,true)
+            end
+        end)
+    end)
 else
     resource.AddWorkshop(2049178348)
 
     util.AddNetworkString('qtg_2dply_reload')
     util.AddNetworkString('qtg_2dply_npcdeath')
     util.AddNetworkString('qtg_2dply_serveris2d')
+    util.AddNetworkString('qtg_2dply_workshopds')
+    util.AddNetworkString('qtg_2dply_workshopds_client')
 
     net.Receive('qtg_2dply_serveris2d',function(_,p)
         local pm = net.ReadString()
 
         p:SetNWBool('qtg_2dply_is2dply',QTG2DPLY.Is2DPly(p) and pm == p:GetModel())
+    end)
+
+    local workshopneedtod = {}
+
+    net.Receive('qtg_2dply_workshopds',function(_,p)
+        local id = net.ReadUInt(32)
+
+        workshopneedtod[id] = true
+
+        for k,v in pairs(player.GetAll()) do
+            if v != p then
+                net.Start('qtg_2dply_workshopds_client')
+                net.WriteUInt(id,32)
+                net.Send(v)
+            end
+        end
+    end)
+
+    addhook('PlayerInitialSpawn',function(p,t)
+        hook.Add('SetupMove',p,function(self,p,mv,cmd)
+            if self == p and not cmd:IsForced() then
+                hook.Run('PlayerFullLoad',self,t,mv,cmd)
+                hook.Remove('SetupMove',self)
+            end
+        end)
+    end)
+
+    addhook('PlayerFullLoad',function(p,t,mv,cmd)
+        for id,v in pairs(workshopneedtod) do
+            net.Start('qtg_2dply_workshopds_client')
+            net.WriteUInt(id,32)
+            net.Send(p)
+        end
     end)
 
     addhook('PlayerSpawnedNPC',function(p,e)
