@@ -241,6 +241,8 @@ if CLIENT then
 
             t['normal'][v] = {}
 
+            print(v)
+
             table.sort(f2,sortf)
 
             for k2,v2 in ipairs(f2) do
@@ -252,7 +254,7 @@ if CLIENT then
                 end
 
                 t['normal'][v][#t['normal'][v]+1] = {
-                    mat = Material(pa..'/'..v..'/'..v2,'nocull'),
+                    mat = Material(pa..'/'..v..'/'..v2,v != 'back' and v != 'default' and 'nocull' or nil),
                     type = typ or ''
                 }
             end
@@ -277,7 +279,7 @@ if CLIENT then
                     end
 
                     t[v3][v][#t[v3][v]+1] = {
-                        mat = Material(pa..'/'..v..'/'..v3..'/'..v4,'nocull'),
+                        mat = Material(pa..'/'..v..'/'..v3..'/'..v4,v != 'back' and v != 'default' and 'nocull' or nil),
                         type = typ or ''
                     }
                 end
@@ -465,7 +467,7 @@ if CLIENT then
             ang:RotateAroundAxis(ang:Up(),fixr.y)
             ang:RotateAroundAxis(ang:Forward(),fixr.z)
 
-            local function draw2d()
+            local function draw2d(isback)
                 local lcolor = render.ComputeLighting(pos,Vector(0,0,1))
                 local c = p:GetColor()
 
@@ -487,10 +489,15 @@ if CLIENT then
                     return
                 end
 
-                surface.SetMaterial(tbl[st][p.__qtg2di].mat)
-                surface.DrawTexturedRect(-250,-250,500,500)
+                if isback and tbl.back then
+                    surface.SetMaterial(tbl.back[p.__qtg2di].mat)
+                    surface.DrawTexturedRect(-250,-250,500,500)
+                else
+                    surface.SetMaterial(tbl[st][p.__qtg2di].mat)
+                    surface.DrawTexturedRect(-250,-250,500,500)
+                end
 
-                if st2 != '' then
+                if st2 != '' and !isback then
                     if tbl[st2] and tbl[st2][p.__qtg2di] and tbl[st2][p.__qtg2di].mat then
                         surface.SetMaterial(tbl[st2][p.__qtg2di].mat)
                         surface.DrawTexturedRect(-250,-250,500,500)
@@ -502,34 +509,34 @@ if CLIENT then
                 draw2d()
             cam.End3D2D()
 
-            -- fixr = Vector(0,-90,90)
-            -- ang = p:EyeAngles()
+            fixr = Vector(0,-90,90)
+            ang = p:EyeAngles()
 
-            -- if IsValid(veh) then
-            --     ang = p:GetAngles()
-            -- end
+            if IsValid(veh) then
+                ang = p:GetAngles()
+            end
 
-            -- if IsValid(e) then
-            --     if e:GetClass() == 'class C_BaseFlex' then
-            --         ang = e:EyeAngles()
-            --     else
-            --         local eye = e:GetAttachment(e:LookupAttachment('mouth'))
+            if IsValid(e) then
+                if e:GetClass() == 'class C_BaseFlex' then
+                    ang = e:EyeAngles()
+                else
+                    local eye = e:GetAttachment(e:LookupAttachment('mouth'))
 
-            --         if eye then
-            --             ang = eye.Ang
-            --         end
-            --     end
-            -- elseif !IsValid(veh) then
-            --     ang.p = math.Clamp(ang.p,-20,20)
-            -- end
+                    if eye then
+                        ang = eye.Ang
+                    end
+                end
+            elseif !IsValid(veh) then
+                ang.p = math.Clamp(ang.p,-20,20)
+            end
 
-            -- ang:RotateAroundAxis(ang:Right(),fixr.x)
-            -- ang:RotateAroundAxis(ang:Up(),fixr.y)
-            -- ang:RotateAroundAxis(ang:Forward(),fixr.z)
+            ang:RotateAroundAxis(ang:Right(),fixr.x)
+            ang:RotateAroundAxis(ang:Up(),fixr.y)
+            ang:RotateAroundAxis(ang:Forward(),fixr.z)
 
-            -- cam.Start3D2D(pos,ang,0.15)
-            --     draw2d()
-            -- cam.End3D2D()
+            cam.Start3D2D(pos,ang,0.15)
+                draw2d(true)
+            cam.End3D2D()
 
             return true
         end
