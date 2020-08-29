@@ -217,7 +217,7 @@ concommand.Add('qtg_2dply_reload',function(p,c,a,as)
         net.Start('qtg_2dply_reload')
         net.Broadcast()
     elseif p:IsAdmin() then
-        QTG2DPLY.Init()
+        -- QTG2DPLY.Init()
 
         net.Start('qtg_2dply_reload')
         net.SendToServer()
