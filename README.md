@@ -1,6 +1,6 @@
 # ⚠ NOTE ⚠
 **THIS FORK WAS MADE BY SOMEONE WHO (basically) DOESN'T KNOW HOW TO CODE IN LUA.**
-I only have experience in GML and a very tiny bit of C#.
+I only have experience in GML and a very tiny bit of *modding* C#.
 So if this code is "***Y***-*level*" coding, sorry!!! 
 
 # Original 2D Player Model System README
